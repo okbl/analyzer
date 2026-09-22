@@ -666,6 +666,160 @@
     return Math.round(repaid * 100) / 100;
   }
 
+  // ------------------------------------------------------------- залоги
+
+  /*
+   * «Сведения о залоге» — блок в карточке договора. Читается как набор
+   * пар «строка подписей → строка значений»: подписи стоят на тех же
+   * x-координатах, что и значения под ними.
+   *
+   * Две сложности реальных отчётов:
+   *   · длинная подпись переносится на следующую строку («Стоимость предмета
+   *     залога/Валюта стоимости предмета» + «залога»), поэтому подпись
+   *     склеивается со следующей строкой и сверяется со словарём целиком;
+   *   · значение тоже переносится («Недвижимость, за исключением судов и» +
+   *     «космических объектов»), поэтому все строки до следующей подписи
+   *     считаются значениями и склеиваются по колонкам.
+   *
+   * Названия полей разошлись между версиями отчёта (v3: «Дата заключения
+   * договора залога», v5: «Дата возникновения залога»), поэтому словарь
+   * держит оба написания и сводит их в одно поле.
+   */
+  var PLEDGE_LABELS = [
+    ['Предмет залога', 'subject'],
+    ['Идентификационный код предмета залога', 'code'],
+    ['Дата заключения договора залога', 'since'],
+    ['Дата возникновения залога', 'since'],
+    ['Вид стоимости предмета залога', 'valueKind'],
+    ['Стоимость предмета залога/Валюта стоимости предмета залога', 'value'],
+    ['Стоимость и валюта предмета залога', 'value'],
+    ['Дата проведения оценки предмета залога', 'valueDate'],
+    ['Вид актуальной стоимости предмета залога', 'currentKind'],
+    ['Актуальная стоимость предмета залога', 'currentValue'],
+    ['Дата расчета актуальной стоимости предмета залога', 'currentDate'],
+    ['Дата прекращения залога согласно договору', 'endPlanned'],
+    ['Дата фактического прекращения залога', 'endActual'],
+    ['Причина прекращения залога', 'endReason'],
+    ['Сумма всех обязательств, обеспеченных залогом', 'securedTotal'],
+    ['Количество договоров, обеспеченных залогом', 'securedCount'],
+    ['Место нахождения залога', 'place'],
+    ['Залог приобретаемого объекта по сделке', 'purchased'],
+    ['Залог жилой недвижимости', 'residential']
+  ];
+
+  var PLEDGE_BY_KEY = (function () {
+    var m = {};
+    for (var i = 0; i < PLEDGE_LABELS.length; i++) m[key(PLEDGE_LABELS[i][0])] = PLEDGE_LABELS[i][1];
+    return m;
+  })();
+
+  // Конец блока: следующий раздел карточки, соседний залог или новый договор.
+  function isPledgeStop(row) {
+    if (!row.items.length) return true;
+    var it = row.items[0];
+    if (it.x >= 40) return false;
+    var k = key(it.s);
+    return /^сведения /.test(k) || /^фактические платежи/.test(k) ||
+      /^\d{1,3}\.\s/.test(it.s) || isAllCapsHeading(it.s);
+  }
+
+  /*
+   * Читает строку подписей. Возвращает раскладку «x → поле» и номер строки,
+   * с которой начинаются значения, либо null, если это не строка подписей.
+   * Строкой подписей считается только та, где подпись — каждая ячейка:
+   * у строки значений совпадений со словарём не будет.
+   */
+  function readPledgeLabels(rows, i, end) {
+    var row = rows[i];
+    if (!row.items.length || row.items[0].x >= 40) return null;
+    var cont = i + 1 < end ? rows[i + 1] : null;
+    var map = [];
+    var used = false;
+
+    for (var c = 0; c < row.items.length; c++) {
+      var cell = row.items[c];
+      var f = PLEDGE_BY_KEY[key(cell.s)];
+      if (!f && cont) {
+        var tail = nearest(cont, cell.x, 10);
+        if (tail) {
+          f = PLEDGE_BY_KEY[key(cell.s + ' ' + tail.s)];
+          if (f) used = true;
+        }
+      }
+      if (!f) return null;
+      map.push({ x: cell.x, field: f });
+    }
+    return { map: map, next: i + (used ? 2 : 1) };
+  }
+
+  function pledgeField(map, x) {
+    var best = null, dist = 14;
+    for (var i = 0; i < map.length; i++) {
+      var d = Math.abs(map[i].x - x);
+      if (d < dist) { dist = d; best = map[i].field; }
+    }
+    return best;
+  }
+
+  function cleanPledgeValue(s) {
+    s = normSpaces(s || '');
+    return !s || s === '-' || s === '—' || key(s) === 'неизвестно' ? null : s;
+  }
+
+  function parsePledge(rows, start, stale) {
+    var end = start;
+    while (end < rows.length && !isPledgeStop(rows[end])) end++;
+
+    var raw = {};
+    var i = start;
+    while (i < end) {
+      var lab = readPledgeLabels(rows, i, end);
+      if (!lab) { i++; continue; }
+      var vals = {};
+      var j = lab.next;
+      while (j < end && !readPledgeLabels(rows, j, end)) {
+        for (var c = 0; c < rows[j].items.length; c++) {
+          var cell = rows[j].items[c];
+          var f = pledgeField(lab.map, cell.x);
+          if (f) vals[f] = vals[f] ? vals[f] + ' ' + cell.s : cell.s;
+        }
+        j++;
+      }
+      for (var f2 in vals) if (raw[f2] == null) raw[f2] = vals[f2];
+      i = j > i ? j : i + 1;
+    }
+
+    var num = function (f) { var v = cleanPledgeValue(raw[f]); return v == null ? null : parseAmount(v); };
+    var day = function (f) { var v = cleanPledgeValue(raw[f]); return v == null ? null : parseFullDate(v); };
+    var cnt = cleanPledgeValue(raw.securedCount);
+
+    var pledge = {
+      subject: cleanPledgeValue(raw.subject),
+      code: cleanPledgeValue(raw.code),
+      since: day('since'),
+      valueKind: cleanPledgeValue(raw.valueKind),
+      value: num('value'),
+      valueDate: day('valueDate'),
+      currentValue: num('currentValue'),
+      currentDate: day('currentDate'),
+      endPlanned: day('endPlanned'),
+      endActual: day('endActual'),
+      endReason: cleanPledgeValue(raw.endReason),
+      securedTotal: num('securedTotal'),
+      securedCount: cnt != null && /^\d+$/.test(cnt) ? +cnt : null,
+      place: cleanPledgeValue(raw.place),
+      residential: key(cleanPledgeValue(raw.residential) || '') === 'да',
+      purchased: key(cleanPledgeValue(raw.purchased) || '') === 'да',
+      // Отметка самого отчёта: основное обязательство прекращено, и сведения
+      // о залоге могли не обновляться.
+      stale: !!stale
+    };
+    // Залог снят, только если названа дата фактического прекращения.
+    // Плановая дата ничего не говорит о том, что было на самом деле.
+    pledge.released = !!pledge.endActual;
+    return { pledge: pledge, end: end };
+  }
+
   // ------------------------------------------------- повторяющиеся записи
 
   /*
@@ -862,6 +1016,10 @@
       hadOverdue: statuses.some(function (x) { return /просрочка/i.test(x); }),
       contractDate: null,          // «Дата совершения сделки» — дата самого кредитного договора
       obligationDate: null,        // «Дата возникновения обязательства»
+      plannedEnd: null,            // «Дата прекращения обязательства по условиям сделки»
+      closedDate: null,            // «Дата фактического прекращения обязательства»
+      closeReason: null,           // «Основание прекращения обязательства»
+      pledges: [],                 // «Сведения о залоге» — обеспечение по договору
       participation: null,         // «Вид участия в сделке» — заёмщик / поручитель / …
       contractNumber: null,
       amount: null,                // сумма и валюта обязательства
@@ -894,9 +1052,29 @@
             contract.contractDate = d;
             var ob = nearest(rows[j], 212, 10);
             if (ob) contract.obligationDate = parseFullDate(ob.s);
+            var pe = nearest(rows[j], 391, 10);
+            if (pe) contract.plannedEnd = parseFullDate(pe.s);
             break;
           }
         }
+        continue;
+      }
+
+      if (label === key('Дата фактического прекращения обязательства') && i + 1 < rows.length) {
+        var fin = nearest(rows[i + 1], 32, 8);
+        if (fin) contract.closedDate = parseFullDate(fin.s);
+        var why = nearest(rows[i + 1], 212, 10);
+        if (why) contract.closeReason = cleanPledgeValue(why.s);
+        continue;
+      }
+
+      if (label === key('Сведения о залоге')) {
+        // Отчёт сам предупреждает, когда сведения могли устареть:
+        // «Данные могут быть неактуальны из-за прекращения основного обязательства».
+        var note = rows[i].items.length > 1 ? rows[i].items[1].s : '';
+        var pl = parsePledge(rows, i + 1, /неактуальн/i.test(note));
+        if (pl.pledge.subject || pl.pledge.code || pl.pledge.since) contract.pledges.push(pl.pledge);
+        i = pl.end - 1;
         continue;
       }
 

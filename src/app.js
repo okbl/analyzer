@@ -18,6 +18,7 @@ let activeTab = 'new';
 let monthFilter = null;
 let crSearch = '';
 let crSort = 'total';
+let allSort = 'creditor';
 let openCreditors = new Set();
 let bentoFirstRender = true;
 
@@ -105,7 +106,7 @@ const monthsBetween = (a, b) => {
 // Только настройки интерфейса. Персональному тут не место: на file://
 // localStorage общий для всех локальных страниц.
 function savePrefs() {
-  try { localStorage.setItem(PREFS_KEY, JSON.stringify({ filters, pdfOpts, crSort, hideFio })); }
+  try { localStorage.setItem(PREFS_KEY, JSON.stringify({ filters, pdfOpts, crSort, allSort, hideFio })); }
   catch (e) { /* приватный режим — не критично */ }
 }
 
@@ -116,6 +117,7 @@ function loadPrefs() {
     if (p.filters) Object.assign(filters, p.filters);
     if (p.pdfOpts) Object.assign(pdfOpts, p.pdfOpts);
     if (p.crSort) crSort = p.crSort;
+    if (p.allSort) allSort = p.allSort;
     if (typeof p.hideFio === 'boolean') hideFio = p.hideFio;
   } catch (e) { /* повреждённые настройки игнорируем */ }
 }
@@ -1318,9 +1320,14 @@ function renderTabs() {
   const res = deal && deal.date ? compute(deal) : null;
   const noData = report.contracts.filter((c) => !c.hasPaymentTable).length;
   const od = overdueTabCount();
+  const pl = pledgeCount();
   const defs = [
     ['overdue', 'Просрочка', od],
     ['new', 'Новые договоры', res ? res.newContracts.length : null],
+    ['all', 'Все договоры', report.contracts.length],
+    // Вкладку залогов показываем только там, где залоги есть: в большинстве
+    // отчётов их нет, и пустая вкладка была бы шумом.
+    ...(pl ? [['pledge', 'Залоги', pl]] : []),
     ['nodata', 'Нет данных о платежах', noData],
     ['check', 'Проверка', null]
   ];
@@ -1333,7 +1340,7 @@ function renderTabs() {
 function renderPanels() {
   const deal = currentDeal();
   const res = deal && deal.date ? compute(deal) : null;
-  renderOverdue(); renderNew(res); renderNoData(res); renderCheck();
+  renderOverdue(); renderNew(res); renderContracts(); renderPledges(); renderNoData(res); renderCheck();
 }
 
 /* ---------------- вкладка «Просрочка» ---------------- */
@@ -1684,6 +1691,162 @@ function renderNew(res) {
       <td class="sub">${c.section === 'closed' ? 'закрыт' : 'действующий'}${c.hadOverdue ? ' · была просрочка' : ''}</td>
       <td class="r">${money0(c.amount)}</td><td class="r">${c.payments.length}</td>
       <td class="r sub">${c.page}</td></tr>`).join('')}</tbody></table></div></div>`;
+}
+
+/* ---------------- вкладка «Все договоры» ---------------- */
+
+/*
+ * «Дата прекращения обязательства по условиям сделки» в отчётах ОКБ
+ * заполняется заглушкой 31.12.9999, когда срок не определён (кредитные карты).
+ * Печатать её как дату — вводить в заблуждение.
+ */
+function planDate(isoDate) {
+  if (!isoDate) return '—';
+  return +isoDate.slice(0, 4) >= 2100 ? 'бессрочно' : date(isoDate);
+}
+
+/*
+ * «Вид договора» в заголовке отчёта склеен из типа сделки и вида займа:
+ * «Договор займа (кредита) - Необеспеченный микрозаем». Тип одинаков почти
+ * у всех строк и только раздувает колонку — в таблице оставляем вид займа,
+ * полное написание остаётся в подсказке.
+ */
+function kindShort(kind) {
+  const parts = String(kind || '').split(' - ');
+  return parts.length > 1 ? parts[parts.length - 1] : (kind || '—');
+}
+
+function pledgeCount() {
+  if (!report) return 0;
+  return report.contracts.reduce((a, c) => a + c.pledges.length, 0);
+}
+
+function contractState(c) {
+  if (c.closedDate) {
+    return `<span class="st-chip done">закрыт ${date(c.closedDate)}</span>`;
+  }
+  if (c.section === 'closed' || c.isClosed) return '<span class="st-chip done">закрыт</span>';
+  return '<span class="st-chip on">действующий</span>';
+}
+
+function renderContracts() {
+  const box = document.querySelector('#panel-all .pbody');
+  if (!box) return;
+
+  const all = report.contracts.slice();
+  const creditors = [...new Set(all.map((c) => c.creditor))];
+  const open = all.filter((c) => c.section !== 'closed');
+  const closed = all.filter((c) => c.section === 'closed');
+  const secured = all.filter((c) => c.pledges.length);
+
+  const sorted = all.slice().sort((a, b) => {
+    if (allSort === 'creditor') {
+      const d = a.creditor.localeCompare(b.creditor, 'ru');
+      if (d) return d;
+    }
+    return (b.contractDate || '') < (a.contractDate || '') ? -1
+      : (b.contractDate || '') > (a.contractDate || '') ? 1 : 0;
+  });
+
+  box.innerHTML = `<div class="note calm">Все договоры из отчёта — и те, по которым платежей после сделки не было.
+      Расчёт на главном экране этот список не меняет.</div>
+    <div class="sumline">
+      <span><b>${creditors.length}</b> ${plural(creditors.length, 'кредитор', 'кредитора', 'кредиторов')}</span>
+      <span><b>${all.length}</b> ${plural(all.length, 'договор', 'договора', 'договоров')}</span>
+      <span><b>${open.length}</b> ${plural(open.length, 'действующий', 'действующих', 'действующих')}</span>
+      <span><b>${closed.length}</b> ${plural(closed.length, 'закрытый', 'закрытых', 'закрытых')}</span>
+      ${secured.length ? `<span><b>${secured.length}</b> с залогом</span>` : ''}
+      <span class="sp"></span>
+      <label class="lb2">Порядок
+        <select id="all-sort">
+          <option value="creditor"${allSort === 'creditor' ? ' selected' : ''}>по кредитору</option>
+          <option value="date"${allSort === 'date' ? ' selected' : ''}>по дате договора</option>
+        </select>
+      </label>
+    </div>
+    <div class="card"><div class="scroll-x"><table>
+      <thead><tr><th>Кредитор</th><th>Вид договора</th><th>Взят</th><th>Срок по договору</th>
+        <th>Состояние</th><th>Основание закрытия</th><th class="r">Сумма обязательства</th>
+        <th class="r">Платежей</th><th class="r">Лист</th></tr></thead>
+      <tbody>${sorted.map((c) => `<tr>
+        <td><b>${esc(c.creditor)}</b>${c.pledges.length
+    ? ` <span class="pl-mark" title="По договору есть залог">залог</span>` : ''}
+          <span class="sub"> №${c.index}</span></td>
+        <td class="sub" title="${esc(c.kind)}">${esc(kindShort(c.kind))}</td>
+        <td class="nw">${date(c.contractDate) || '—'}</td>
+        <td class="sub nw">${planDate(c.plannedEnd)}</td>
+        <td>${contractState(c)}</td>
+        <td class="sub">${esc(c.closeReason || '—')}</td>
+        <td class="r">${money0(c.amount)}</td>
+        <td class="r">${c.hasPaymentTable ? c.payments.length : '<span class="sub">нет данных</span>'}</td>
+        <td class="r sub">${c.page}</td></tr>`).join('')}</tbody></table></div></div>
+    <p class="hint">«Взят» — поле «Дата совершения сделки». «Срок по договору» — плановое прекращение
+      обязательства по условиям сделки, а не фактическое закрытие: у карт вместо срока стоит «бессрочно».
+      «Состояние» с датой берётся из поля «Дата фактического прекращения обязательства»; без даты показан
+      раздел отчёта, в котором напечатан договор. Номер после кредитора — нумерация самого отчёта, своя
+      в разделах действующих и закрытых договоров. Просрочки по этим договорам — во вкладке «Просрочка».</p>`;
+
+  const sel = $('all-sort');
+  if (sel) sel.addEventListener('change', (e) => { allSort = e.target.value; savePrefs(); renderContracts(); });
+}
+
+/* ---------------- вкладка «Залоги» ---------------- */
+function renderPledges() {
+  const box = document.querySelector('#panel-pledge .pbody');
+  if (!box) return;
+
+  const rows = [];
+  for (const c of report.contracts) for (const p of c.pledges) rows.push({ c, p });
+  // Не снятые залоги вперёд: именно они обременяют имущество сейчас.
+  rows.sort((a, b) => (a.p.released ? 1 : 0) - (b.p.released ? 1 : 0) ||
+    ((b.p.since || '') < (a.p.since || '') ? -1 : (b.p.since || '') > (a.p.since || '') ? 1 : 0));
+  if (!rows.length) {
+    box.innerHTML = `<div class="empty"><b>Залогов в отчёте нет</b>
+      Ни в одном договоре не нашлось раздела «Сведения о залоге».
+      Это значит, что обеспеченных залогом обязательств бюро не передало.</div>`;
+    return;
+  }
+
+  const live = rows.filter((r) => !r.p.released);
+  const liveValue = live.reduce((a, r) => a + (r.p.currentValue != null ? r.p.currentValue : r.p.value || 0), 0);
+
+  box.innerHTML = `<div class="note calm">Кредиторы, у которых обязательство обеспечено залогом.
+      Отдельно от основного расчёта: на суммы платежей и просрочку этот раздел не влияет.</div>
+    <div class="sumline">
+      <span><b>${rows.length}</b> ${plural(rows.length, 'предмет залога', 'предмета залога', 'предметов залога')}</span>
+      <span><b>${live.length}</b> не снято</span>
+      <span><b>${rows.length - live.length}</b> снято</span>
+      ${liveValue > 0 ? `<span>оценка действующих <b>${money0(liveValue)}</b></span>` : ''}
+    </div>
+    ${rows.map(({ c, p }) => `<div class="pl-card${p.released ? ' done' : ''}">
+      <div class="pl-head">
+        <div>
+          <b>${esc(c.creditor)}</b>
+          <span class="sub">№${c.index} от ${date(c.contractDate) || '—'} · ${esc(kindShort(c.kind))}</span>
+        </div>
+        <div class="pl-chips">${contractState(c)}${p.released
+    ? `<span class="st-chip done">залог снят ${date(p.endActual)}</span>`
+    : '<span class="st-chip acc">залог в силе</span>'}</div>
+      </div>
+      <div class="pl-subj">${esc(p.subject || 'Предмет залога не назван')}${p.residential
+    ? ' <span class="pl-mark">жилая недвижимость</span>' : ''}${p.purchased
+    ? ' <span class="pl-mark">приобретается по сделке</span>' : ''}</div>
+      <dl class="pl-dl">
+        ${p.code ? `<dt>Идентификатор</dt><dd class="mono">${esc(p.code)}</dd>` : ''}
+        <dt>Залог с</dt><dd>${date(p.since) || '—'}</dd>
+        <dt>Оценка</dt><dd>${money0(p.value)}${p.valueKind ? ` <span class="sub">${esc(p.valueKind.toLowerCase())}</span>` : ''}${p.valueDate ? ` <span class="sub">на ${date(p.valueDate)}</span>` : ''}</dd>
+        ${p.currentValue != null ? `<dt>Актуальная стоимость</dt><dd>${money0(p.currentValue)}${p.currentDate ? ` <span class="sub">на ${date(p.currentDate)}</span>` : ''}</dd>` : ''}
+        ${p.securedTotal != null ? `<dt>Обеспечено обязательств</dt><dd>${money0(p.securedTotal)}${p.securedCount ? ` <span class="sub">по ${p.securedCount} ${plural(p.securedCount, 'договору', 'договорам', 'договорам')}</span>` : ''}</dd>` : ''}
+        <dt>Срок по договору залога</dt><dd class="sub">${planDate(p.endPlanned)}</dd>
+        ${p.released ? `<dt>Снят</dt><dd>${date(p.endActual)}${p.endReason ? ` <span class="sub">— ${esc(p.endReason.toLowerCase())}</span>` : ''}</dd>` : ''}
+        ${p.place ? `<dt>Место нахождения</dt><dd class="sub">${esc(p.place)}</dd>` : ''}
+      </dl>
+      ${p.stale ? `<p class="pl-note">Отчёт помечает эти сведения как возможно неактуальные:
+        основное обязательство прекращено, и данные о залоге могли не обновляться.</p>` : ''}
+    </div>`).join('')}
+    <p class="hint">Залог считается снятым только по полю «Дата фактического прекращения залога».
+      Плановый срок из договора залога ничего не говорит о том, снято обеспечение или нет:
+      в отчётах регулярно встречается и просроченный план при действующем залоге, и снятие раньше срока.</p>`;
 }
 
 function renderNoData(res) {

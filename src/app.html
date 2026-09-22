@@ -377,6 +377,43 @@ tr.total:hover td{background:transparent}
 .err{margin-top:14px;background:var(--acc-wash);color:var(--acc);border:1px solid var(--acc-line);
   border-radius:var(--r-sm);padding:12px 14px;font-size:13.5px;text-align:left}
 
+/* ---------- вкладки «Все договоры» и «Залоги» ---------- */
+.sumline{display:flex;align-items:center;gap:7px 18px;flex-wrap:wrap;margin:0 0 12px;
+  font-size:12.5px;color:var(--ink-2)}
+.sumline b{color:var(--ink);font-weight:600;font-size:14px}
+.sumline .sp{flex:1 1 auto}
+.lb2{display:flex;align-items:center;gap:7px;color:var(--ink-3);font-size:12.5px}
+.lb2 select{border:1px solid var(--line-2);background:var(--surface);color:var(--ink);
+  border-radius:9px;padding:5px 9px;font:inherit;font-size:12.5px}
+
+/* Состояние договора и залога — плашкой, а не мелким текстом: по колонке
+   должно быть видно с одного взгляда, что закрыто, а что нет. */
+.st-chip{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11.5px;
+  font-weight:600;white-space:nowrap;margin-right:4px}
+.st-chip.on{background:rgba(103,181,98,.17);color:#3C7538}
+.st-chip.done{background:var(--surface-2);color:var(--ink-3);font-weight:500}
+.st-chip.warn{background:rgba(237,69,54,.13);color:#A32C1D}
+.st-chip.acc{background:var(--acc);color:#FBF9F6}
+td.nw,th.nw{white-space:nowrap}
+.pl-mark{display:inline-block;border:1px solid var(--line-2);border-radius:999px;
+  padding:1px 8px;font-size:11px;color:var(--ink-3);white-space:nowrap}
+
+.pl-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:15px 18px 13px;box-shadow:var(--shadow);margin-bottom:12px}
+.pl-card.done{box-shadow:none;background:var(--surface-2)}
+.pl-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.pl-head b{font-size:14.5px;font-weight:600}
+.pl-head .sub{display:block;font-size:12px;color:var(--ink-3);margin-top:2px}
+.pl-chips{display:flex;gap:4px;flex-wrap:wrap}
+.pl-subj{font-size:15px;font-weight:600;letter-spacing:-.01em;margin:11px 0 9px}
+.pl-dl{display:grid;grid-template-columns:auto 1fr;gap:5px 18px;margin:0;font-size:13px}
+.pl-dl dt{color:var(--ink-3);white-space:nowrap}
+.pl-dl dd{margin:0;color:var(--ink)}
+.pl-dl dd .sub{color:var(--ink-3);font-weight:400}
+.pl-dl .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+.pl-note{border-left:2px solid var(--line-2);margin:11px 0 0;padding:2px 0 2px 11px;
+  font-size:12px;color:var(--ink-3);line-height:1.5}
+
 /* ---------- окно настроек выгрузки ---------- */
 .modal{position:fixed;inset:0;z-index:60;background:rgba(43,45,49,.42);
   display:flex;align-items:flex-start;justify-content:center;padding:5vh 18px;overflow:auto}
@@ -633,6 +670,9 @@ tr.total:hover td{background:transparent}
   .tab{padding:6px 12px;font-size:12.5px}
 
   .modal{padding:2vh 10px}
+  .pl-dl{grid-template-columns:1fr;gap:1px 0}
+  .pl-dl dd{margin:0 0 6px}
+  .pl-card{padding:13px 14px 11px}
   .modal .box.help{padding:18px 16px 14px}
   .help dl{grid-template-columns:1fr;gap:2px 0}
   .help dd{margin:0 0 7px}
@@ -817,6 +857,8 @@ tr.total:hover td{background:transparent}
   <div class="tabs" id="tabs"></div>
   <div id="panel-overdue" class="tab-panel"><h3 class="panel-title">Динамика просрочек</h3><div class="pbody"></div></div>
   <div id="panel-new" class="tab-panel"><h3 class="panel-title">Договоры, заключённые после сделки</h3><div class="pbody"></div></div>
+  <div id="panel-all" class="tab-panel"><h3 class="panel-title">Все договоры</h3><div class="pbody"></div></div>
+  <div id="panel-pledge" class="tab-panel"><h3 class="panel-title">Залоги</h3><div class="pbody"></div></div>
   <div id="panel-nodata" class="tab-panel"><h3 class="panel-title">Договоры без данных о платежах</h3><div class="pbody"></div></div>
   <div id="panel-check" class="tab-panel"><h3 class="panel-title">Проверка разбора</h3><div class="pbody"></div></div>
 </div></section>
@@ -925,6 +967,15 @@ tr.total:hover td{background:transparent}
     <dl>
       <dt>Новые договоры</dt>
       <dd>Кредиты, заключённые после сделки.</dd>
+      <dt>Все договоры</dt>
+      <dd>Полный список кредиторов и договоров из отчёта: когда взят, срок по договору, закрыт или
+        действует, по какому основанию закрыт. Не зависит от даты сделки и фильтров — это справка
+        по отчёту целиком. Сортируется по кредитору или по дате договора.</dd>
+      <dt>Залоги</dt>
+      <dd>Появляется, только если в отчёте есть раздел «Сведения о залоге». Отдельно по каждому
+        предмету залога: у какого кредитора, что в залоге, идентификатор (VIN или кадастровый номер),
+        оценка и актуальная стоимость, сумма обеспеченных обязательств, в силе залог или снят и когда.
+        Снятым залог считается только по дате фактического прекращения, а не по плановому сроку.</dd>
       <dt>Нет данных о платежах</dt>
       <dd>Договоры без построчного списка. Отсутствие платежей здесь не значит, что их не было.</dd>
       <dt>Проверка</dt>
