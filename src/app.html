@@ -377,7 +377,19 @@ tr.total:hover td{background:transparent}
 .err{margin-top:14px;background:var(--acc-wash);color:var(--acc);border:1px solid var(--acc-line);
   border-radius:var(--r-sm);padding:12px 14px;font-size:13.5px;text-align:left}
 
-/* ---------- вкладки «Все договоры» и «Залоги» ---------- */
+/* ---------- вкладки «Договоры» и «Залоги» ---------- */
+
+/* Наборы договоров вместо отдельных вкладок: шесть вкладок в ряд читались
+   хуже, чем одна вкладка с фильтром внутри. */
+.setbar{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px}
+.set{border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);
+  border-radius:999px;padding:6px 13px;font:inherit;font-size:12.5px;cursor:pointer;
+  transition:border-color .15s,color .15s,background .15s}
+.set:hover:not(:disabled){border-color:var(--ink-3);color:var(--ink)}
+.set.on{background:var(--ink);border-color:var(--ink);color:var(--surface);font-weight:600}
+.set .n{opacity:.65;font-weight:400}
+.set.empty{opacity:.45;cursor:default}
+
 .sumline{display:flex;align-items:center;gap:7px 18px;flex-wrap:wrap;margin:0 0 12px;
   font-size:12.5px;color:var(--ink-2)}
 .sumline b{color:var(--ink);font-weight:600;font-size:14px}
@@ -395,6 +407,30 @@ tr.total:hover td{background:transparent}
 .st-chip.warn{background:rgba(237,69,54,.13);color:#A32C1D}
 .st-chip.acc{background:var(--acc);color:#FBF9F6}
 td.nw,th.nw{white-space:nowrap}
+
+/* Строка раскрывается по клику: редкие поля карточки договора не занимают
+   колонку, но и не теряются. */
+table.rowopen tr.main{cursor:pointer}
+table.rowopen tr.main:hover td{background:var(--surface-2)}
+table.rowopen tr.main:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+.caret2{display:inline-block;width:0;height:0;margin-left:7px;vertical-align:middle;
+  border:4px solid transparent;border-top-color:var(--ink-3);transform:translateY(2px);
+  transition:transform .15s}
+tr.main.open .caret2{transform:translateY(-1px) rotate(180deg)}
+tr.det>td{background:var(--surface-2);padding:11px 14px}
+.det-dl{display:grid;grid-template-columns:auto 1fr;gap:5px 18px;margin:0;font-size:12.5px}
+.det-dl dt{color:var(--ink-3);white-space:nowrap}
+.det-dl dd{margin:0;color:var(--ink)}
+
+.pl-more{margin-top:9px}
+.pl-more>summary{list-style:none;cursor:pointer;font-size:12.5px;color:var(--ink-3);
+  display:flex;align-items:center;gap:6px;width:fit-content}
+.pl-more>summary::-webkit-details-marker{display:none}
+.pl-more>summary:hover{color:var(--acc)}
+.pl-more[open]>summary{margin-bottom:7px}
+.pl-more>summary .caret{width:6px;height:6px;flex:none;border-right:2px solid currentColor;
+  border-bottom:2px solid currentColor;transform:rotate(-45deg);transition:transform .15s}
+.pl-more[open]>summary .caret{transform:rotate(45deg)}
 .pl-mark{display:inline-block;border:1px solid var(--line-2);border-radius:999px;
   padding:1px 8px;font-size:11px;color:var(--ink-3);white-space:nowrap}
 
@@ -670,6 +706,8 @@ td.nw,th.nw{white-space:nowrap}
   .tab{padding:6px 12px;font-size:12.5px}
 
   .modal{padding:2vh 10px}
+  .det-dl{grid-template-columns:1fr;gap:1px 0}
+  .det-dl dd{margin:0 0 6px}
   .pl-dl{grid-template-columns:1fr;gap:1px 0}
   .pl-dl dd{margin:0 0 6px}
   .pl-card{padding:13px 14px 11px}
@@ -856,10 +894,8 @@ td.nw,th.nw{white-space:nowrap}
   <div class="bento" id="bento"></div>
   <div class="tabs" id="tabs"></div>
   <div id="panel-overdue" class="tab-panel"><h3 class="panel-title">Динамика просрочек</h3><div class="pbody"></div></div>
-  <div id="panel-new" class="tab-panel"><h3 class="panel-title">Договоры, заключённые после сделки</h3><div class="pbody"></div></div>
-  <div id="panel-all" class="tab-panel"><h3 class="panel-title">Все договоры</h3><div class="pbody"></div></div>
+  <div id="panel-all" class="tab-panel"><h3 class="panel-title">Договоры</h3><div class="pbody"></div></div>
   <div id="panel-pledge" class="tab-panel"><h3 class="panel-title">Залоги</h3><div class="pbody"></div></div>
-  <div id="panel-nodata" class="tab-panel"><h3 class="panel-title">Договоры без данных о платежах</h3><div class="pbody"></div></div>
   <div id="panel-check" class="tab-panel"><h3 class="panel-title">Проверка разбора</h3><div class="pbody"></div></div>
 </div></section>
 
@@ -965,19 +1001,18 @@ td.nw,th.nw{white-space:nowrap}
 
     <h4>Остальные вкладки и кнопки</h4>
     <dl>
-      <dt>Новые договоры</dt>
-      <dd>Кредиты, заключённые после сделки.</dd>
-      <dt>Все договоры</dt>
-      <dd>Полный список кредиторов и договоров из отчёта: когда взят, срок по договору, закрыт или
-        действует, по какому основанию закрыт. Не зависит от даты сделки и фильтров — это справка
-        по отчёту целиком. Сортируется по кредитору или по дате договора.</dd>
+      <dt>Договоры</dt>
+      <dd>Все кредиторы и договоры из отчёта: когда взят, закрыт или действует. Наверху наборы —
+        все, действующие, закрытые, новые после сделки, без данных о платежах, с залогом. Строка
+        раскрывается по клику: срок по договору, основание закрытия, вид участия, агрегат отчёта.
+        В наборе «без данных о платежах» вместо числа платежей показано снижение долга по снимкам
+        задолженности — косвенная оценка, в расчёт она не входит.</dd>
       <dt>Залоги</dt>
       <dd>Появляется, только если в отчёте есть раздел «Сведения о залоге». Отдельно по каждому
-        предмету залога: у какого кредитора, что в залоге, идентификатор (VIN или кадастровый номер),
-        оценка и актуальная стоимость, сумма обеспеченных обязательств, в силе залог или снят и когда.
-        Снятым залог считается только по дате фактического прекращения, а не по плановому сроку.</dd>
-      <dt>Нет данных о платежах</dt>
-      <dd>Договоры без построчного списка. Отсутствие платежей здесь не значит, что их не было.</dd>
+        предмету: у какого кредитора, что в залоге, оценка, в силе залог или снят и когда.
+        Под «подробнее» — идентификатор (VIN или кадастровый номер), актуальная стоимость, сумма
+        обеспеченных обязательств, срок и причина снятия. Снятым залог считается только по дате
+        фактического прекращения, а не по плановому сроку.</dd>
       <dt>Проверка</dt>
       <dd>Сходятся ли суммы по списку с итогами самого отчёта, повторы, сбои разбора.</dd>
       <dt>Печать в PDF</dt>

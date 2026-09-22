@@ -388,7 +388,19 @@ tr.total:hover td{background:transparent}
 .err{margin-top:14px;background:var(--acc-wash);color:var(--acc);border:1px solid var(--acc-line);
   border-radius:var(--r-sm);padding:12px 14px;font-size:13.5px;text-align:left}
 
-/* ---------- вкладки «Все договоры» и «Залоги» ---------- */
+/* ---------- вкладки «Договоры» и «Залоги» ---------- */
+
+/* Наборы договоров вместо отдельных вкладок: шесть вкладок в ряд читались
+   хуже, чем одна вкладка с фильтром внутри. */
+.setbar{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px}
+.set{border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);
+  border-radius:999px;padding:6px 13px;font:inherit;font-size:12.5px;cursor:pointer;
+  transition:border-color .15s,color .15s,background .15s}
+.set:hover:not(:disabled){border-color:var(--ink-3);color:var(--ink)}
+.set.on{background:var(--ink);border-color:var(--ink);color:var(--surface);font-weight:600}
+.set .n{opacity:.65;font-weight:400}
+.set.empty{opacity:.45;cursor:default}
+
 .sumline{display:flex;align-items:center;gap:7px 18px;flex-wrap:wrap;margin:0 0 12px;
   font-size:12.5px;color:var(--ink-2)}
 .sumline b{color:var(--ink);font-weight:600;font-size:14px}
@@ -406,6 +418,30 @@ tr.total:hover td{background:transparent}
 .st-chip.warn{background:rgba(237,69,54,.13);color:#A32C1D}
 .st-chip.acc{background:var(--acc);color:#FBF9F6}
 td.nw,th.nw{white-space:nowrap}
+
+/* Строка раскрывается по клику: редкие поля карточки договора не занимают
+   колонку, но и не теряются. */
+table.rowopen tr.main{cursor:pointer}
+table.rowopen tr.main:hover td{background:var(--surface-2)}
+table.rowopen tr.main:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+.caret2{display:inline-block;width:0;height:0;margin-left:7px;vertical-align:middle;
+  border:4px solid transparent;border-top-color:var(--ink-3);transform:translateY(2px);
+  transition:transform .15s}
+tr.main.open .caret2{transform:translateY(-1px) rotate(180deg)}
+tr.det>td{background:var(--surface-2);padding:11px 14px}
+.det-dl{display:grid;grid-template-columns:auto 1fr;gap:5px 18px;margin:0;font-size:12.5px}
+.det-dl dt{color:var(--ink-3);white-space:nowrap}
+.det-dl dd{margin:0;color:var(--ink)}
+
+.pl-more{margin-top:9px}
+.pl-more>summary{list-style:none;cursor:pointer;font-size:12.5px;color:var(--ink-3);
+  display:flex;align-items:center;gap:6px;width:fit-content}
+.pl-more>summary::-webkit-details-marker{display:none}
+.pl-more>summary:hover{color:var(--acc)}
+.pl-more[open]>summary{margin-bottom:7px}
+.pl-more>summary .caret{width:6px;height:6px;flex:none;border-right:2px solid currentColor;
+  border-bottom:2px solid currentColor;transform:rotate(-45deg);transition:transform .15s}
+.pl-more[open]>summary .caret{transform:rotate(45deg)}
 .pl-mark{display:inline-block;border:1px solid var(--line-2);border-radius:999px;
   padding:1px 8px;font-size:11px;color:var(--ink-3);white-space:nowrap}
 
@@ -681,6 +717,8 @@ td.nw,th.nw{white-space:nowrap}
   .tab{padding:6px 12px;font-size:12.5px}
 
   .modal{padding:2vh 10px}
+  .det-dl{grid-template-columns:1fr;gap:1px 0}
+  .det-dl dd{margin:0 0 6px}
   .pl-dl{grid-template-columns:1fr;gap:1px 0}
   .pl-dl dd{margin:0 0 6px}
   .pl-card{padding:13px 14px 11px}
@@ -867,10 +905,8 @@ td.nw,th.nw{white-space:nowrap}
   <div class="bento" id="bento"></div>
   <div class="tabs" id="tabs"></div>
   <div id="panel-overdue" class="tab-panel"><h3 class="panel-title">Динамика просрочек</h3><div class="pbody"></div></div>
-  <div id="panel-new" class="tab-panel"><h3 class="panel-title">Договоры, заключённые после сделки</h3><div class="pbody"></div></div>
-  <div id="panel-all" class="tab-panel"><h3 class="panel-title">Все договоры</h3><div class="pbody"></div></div>
+  <div id="panel-all" class="tab-panel"><h3 class="panel-title">Договоры</h3><div class="pbody"></div></div>
   <div id="panel-pledge" class="tab-panel"><h3 class="panel-title">Залоги</h3><div class="pbody"></div></div>
-  <div id="panel-nodata" class="tab-panel"><h3 class="panel-title">Договоры без данных о платежах</h3><div class="pbody"></div></div>
   <div id="panel-check" class="tab-panel"><h3 class="panel-title">Проверка разбора</h3><div class="pbody"></div></div>
 </div></section>
 
@@ -976,19 +1012,18 @@ td.nw,th.nw{white-space:nowrap}
 
     <h4>Остальные вкладки и кнопки</h4>
     <dl>
-      <dt>Новые договоры</dt>
-      <dd>Кредиты, заключённые после сделки.</dd>
-      <dt>Все договоры</dt>
-      <dd>Полный список кредиторов и договоров из отчёта: когда взят, срок по договору, закрыт или
-        действует, по какому основанию закрыт. Не зависит от даты сделки и фильтров — это справка
-        по отчёту целиком. Сортируется по кредитору или по дате договора.</dd>
+      <dt>Договоры</dt>
+      <dd>Все кредиторы и договоры из отчёта: когда взят, закрыт или действует. Наверху наборы —
+        все, действующие, закрытые, новые после сделки, без данных о платежах, с залогом. Строка
+        раскрывается по клику: срок по договору, основание закрытия, вид участия, агрегат отчёта.
+        В наборе «без данных о платежах» вместо числа платежей показано снижение долга по снимкам
+        задолженности — косвенная оценка, в расчёт она не входит.</dd>
       <dt>Залоги</dt>
       <dd>Появляется, только если в отчёте есть раздел «Сведения о залоге». Отдельно по каждому
-        предмету залога: у какого кредитора, что в залоге, идентификатор (VIN или кадастровый номер),
-        оценка и актуальная стоимость, сумма обеспеченных обязательств, в силе залог или снят и когда.
-        Снятым залог считается только по дате фактического прекращения, а не по плановому сроку.</dd>
-      <dt>Нет данных о платежах</dt>
-      <dd>Договоры без построчного списка. Отсутствие платежей здесь не значит, что их не было.</dd>
+        предмету: у какого кредитора, что в залоге, оценка, в силе залог или снят и когда.
+        Под «подробнее» — идентификатор (VIN или кадастровый номер), актуальная стоимость, сумма
+        обеспеченных обязательств, срок и причина снятия. Снятым залог считается только по дате
+        фактического прекращения, а не по плановому сроку.</dd>
       <dt>Проверка</dt>
       <dd>Сходятся ли суммы по списку с итогами самого отчёта, повторы, сбои разбора.</dd>
       <dt>Печать в PDF</dt>
@@ -3057,11 +3092,12 @@ let deals = [];
 let activeDeal = null;
 let dealSeq = 0;
 let hideFio = false;
-let activeTab = 'new';
+let activeTab = 'all';
 let monthFilter = null;
 let crSearch = '';
 let crSort = 'total';
 let allSort = 'creditor';
+let allSet = 'all';
 let openCreditors = new Set();
 let bentoFirstRender = true;
 
@@ -3149,7 +3185,7 @@ const monthsBetween = (a, b) => {
 // Только настройки интерфейса. Персональному тут не место: на file://
 // localStorage общий для всех локальных страниц.
 function savePrefs() {
-  try { localStorage.setItem(PREFS_KEY, JSON.stringify({ filters, pdfOpts, crSort, allSort, hideFio })); }
+  try { localStorage.setItem(PREFS_KEY, JSON.stringify({ filters, pdfOpts, crSort, allSort, allSet, hideFio })); }
   catch (e) { /* приватный режим — не критично */ }
 }
 
@@ -3161,6 +3197,7 @@ function loadPrefs() {
     if (p.pdfOpts) Object.assign(pdfOpts, p.pdfOpts);
     if (p.crSort) crSort = p.crSort;
     if (p.allSort) allSort = p.allSort;
+    if (p.allSet) allSet = p.allSet;
     if (typeof p.hideFio === 'boolean') hideFio = p.hideFio;
   } catch (e) { /* повреждённые настройки игнорируем */ }
 }
@@ -4147,7 +4184,7 @@ function renderBento() {
   tiles.push(renderCreditorsTile(res));
 
   const rightTiles = [];
-  rightTiles.push(`<div class="t link" data-tab="new">
+  rightTiles.push(`<div class="t link" data-tab="all" data-set="new">
     <div class="k">Договоры после сделки</div>
     <div class="v">${res.newContracts.length}</div>
     <div class="m">${res.newContracts.length
@@ -4156,7 +4193,7 @@ function renderBento() {
       : 'новых кредитов после сделки нет'}</div>
   </div>`);
 
-  rightTiles.push(`<div class="t link${totalC - withTable ? '' : ''}" data-tab="nodata">
+  rightTiles.push(`<div class="t link" data-tab="all" data-set="nodata">
     <div class="k">Полнота данных</div>
     <div class="v">${withTable} из ${totalC}</div>
     <div class="m">${totalC - withTable
@@ -4183,7 +4220,12 @@ function renderBento() {
 
 function wireBento() {
   const bento = $('bento');
-  bento.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => selectTab(b.dataset.tab)));
+  bento.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => {
+    // Плитки открывают вкладку «Договоры» на нужном наборе: отдельных вкладок
+    // под «новые» и «без данных» больше нет.
+    if (b.dataset.set) { allSet = b.dataset.set; savePrefs(); renderPanels(); }
+    selectTab(b.dataset.tab);
+  }));
   bento.querySelectorAll('.strip2 i.hit').forEach((b) => b.addEventListener('click', () => {
     monthFilter = monthFilter === b.dataset.ym ? null : b.dataset.ym;
     renderAll();
@@ -4352,26 +4394,25 @@ function wireCreditors() {
 
 /* ================= нижние разделы ================= */
 function selectTab(k) {
-  activeTab = k;
+  // Набор вкладок зависит от отчёта (залоги есть не всегда), поэтому
+  // несуществующую вкладку сводим к «Договорам», а не гасим все панели.
+  activeTab = $('panel-' + k) ? k : 'all';
   renderTabs();
-  const el = $('panel-' + k);
+  const el = $('panel-' + activeTab);
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function renderTabs() {
   const deal = currentDeal();
   const res = deal && deal.date ? compute(deal) : null;
-  const noData = report.contracts.filter((c) => !c.hasPaymentTable).length;
   const od = overdueTabCount();
   const pl = pledgeCount();
   const defs = [
     ['overdue', 'Просрочка', od],
-    ['new', 'Новые договоры', res ? res.newContracts.length : null],
-    ['all', 'Все договоры', report.contracts.length],
+    ['all', 'Договоры', report.contracts.length],
     // Вкладку залогов показываем только там, где залоги есть: в большинстве
     // отчётов их нет, и пустая вкладка была бы шумом.
     ...(pl ? [['pledge', 'Залоги', pl]] : []),
-    ['nodata', 'Нет данных о платежах', noData],
     ['check', 'Проверка', null]
   ];
   $('tabs').innerHTML = defs.map(([k, label, n]) =>
@@ -4383,7 +4424,7 @@ function renderTabs() {
 function renderPanels() {
   const deal = currentDeal();
   const res = deal && deal.date ? compute(deal) : null;
-  renderOverdue(); renderNew(res); renderContracts(); renderPledges(); renderNoData(res); renderCheck();
+  renderOverdue(); renderContracts(res); renderPledges(); renderCheck();
 }
 
 /* ---------------- вкладка «Просрочка» ---------------- */
@@ -4718,25 +4759,7 @@ function renderOverdue() {
     ни статусов у платежей — построить динамику не из чего.</div>`;
 }
 
-function renderNew(res) {
-  const box = document.querySelector('#panel-new .pbody');
-  if (!res || !res.newContracts.length) {
-    box.innerHTML = '<div class="empty"><b>Новых договоров нет</b>После указанной даты должник не заключал кредитных договоров из этого отчёта.</div>';
-    return;
-  }
-  box.innerHTML = `<div class="note calm">Определяется по полю «Дата совершения сделки» кредитного договора.
-      Исключить платежи по ним можно галочкой в «Дополнительно».</div>
-    <div class="card"><div class="scroll-x"><table>
-    <thead><tr><th>Дата договора</th><th>Кредитор</th><th>Вид</th><th>Статус</th>
-      <th class="r">Сумма обязательства</th><th class="r">Платежей</th><th class="r">Лист</th></tr></thead>
-    <tbody>${res.newContracts.slice().sort((a, b) => a.contractDate < b.contractDate ? 1 : -1).map((c) => `<tr>
-      <td>${date(c.contractDate)}</td><td><b>${esc(c.creditor)}</b></td><td class="sub">${esc(c.kind)}</td>
-      <td class="sub">${c.section === 'closed' ? 'закрыт' : 'действующий'}${c.hadOverdue ? ' · была просрочка' : ''}</td>
-      <td class="r">${money0(c.amount)}</td><td class="r">${c.payments.length}</td>
-      <td class="r sub">${c.page}</td></tr>`).join('')}</tbody></table></div></div>`;
-}
-
-/* ---------------- вкладка «Все договоры» ---------------- */
+/* ---------------- вкладка «Договоры» ---------------- */
 
 /*
  * «Дата прекращения обязательства по условиям сделки» в отчётах ОКБ
@@ -4765,24 +4788,53 @@ function pledgeCount() {
 }
 
 function contractState(c) {
-  if (c.closedDate) {
-    return `<span class="st-chip done">закрыт ${date(c.closedDate)}</span>`;
-  }
+  if (c.closedDate) return `<span class="st-chip done">закрыт ${date(c.closedDate)}</span>`;
   if (c.section === 'closed' || c.isClosed) return '<span class="st-chip done">закрыт</span>';
   return '<span class="st-chip on">действующий</span>';
 }
 
-function renderContracts() {
+/*
+ * Раньше «Новые договоры» и «Нет данных о платежах» были отдельными вкладками.
+ * Это один и тот же список договоров, просто отфильтрованный, поэтому они
+ * свелись в наборы этой вкладки: шесть вкладок в ряд читались хуже.
+ */
+function contractSets(res) {
+  const all = report.contracts;
+  const isNew = new Set(res ? res.newContracts : []);
+  return [
+    ['all', 'Все', all],
+    ['open', 'Действующие', all.filter((c) => c.section !== 'closed')],
+    ['closed', 'Закрытые', all.filter((c) => c.section === 'closed')],
+    ['new', 'Новые после сделки', all.filter((c) => isNew.has(c))],
+    ['nodata', 'Без данных о платежах', all.filter((c) => !c.hasPaymentTable)],
+    ['pledge', 'С залогом', all.filter((c) => c.pledges.length)]
+  ];
+}
+
+const SET_NOTES = {
+  new: `<div class="note calm">Договоры, заключённые после указанной даты сделки. Определяется по полю
+    «Дата совершения сделки». Исключить платежи по ним из расчёта можно галочкой в «Дополнительно».</div>`,
+  nodata: `<div class="note"><b>Важно.</b> По этим договорам кредитор не передал в бюро построчный список
+    платежей. Отсутствие платежей здесь <b>не значит, что их не было</b> — сведений просто нет в отчёте.
+    В колонке «Снижение долга» — косвенная оценка по разделу «Сведения о сумме задолженности»:
+    долг уменьшается не только от платежей, но и при списании, переуступке или реструктуризации.
+    В расчёт она не входит.</div>`,
+  pledge: `<div class="note calm">Договоры, обеспеченные залогом. Что именно в залоге и снят ли он —
+    во вкладке «Залоги».</div>`
+};
+
+function renderContracts(res) {
   const box = document.querySelector('#panel-all .pbody');
   if (!box) return;
 
-  const all = report.contracts.slice();
-  const creditors = [...new Set(all.map((c) => c.creditor))];
-  const open = all.filter((c) => c.section !== 'closed');
-  const closed = all.filter((c) => c.section === 'closed');
-  const secured = all.filter((c) => c.pledges.length);
+  const sets = contractSets(res);
+  let cur = sets.find((s) => s[0] === allSet);
+  if (!cur || !cur[2].length) { cur = sets[0]; allSet = 'all'; }
+  const list = cur[2];
+  const from = res && res.deal ? res.deal.date : null;
+  const creditors = new Set(list.map((c) => c.creditor));
 
-  const sorted = all.slice().sort((a, b) => {
+  const sorted = list.slice().sort((a, b) => {
     if (allSort === 'creditor') {
       const d = a.creditor.localeCompare(b.creditor, 'ru');
       if (d) return d;
@@ -4791,14 +4843,20 @@ function renderContracts() {
       : (b.contractDate || '') > (a.contractDate || '') ? 1 : 0;
   });
 
-  box.innerHTML = `<div class="note calm">Все договоры из отчёта — и те, по которым платежей после сделки не было.
-      Расчёт на главном экране этот список не меняет.</div>
+  const lastCol = allSet === 'nodata'
+    ? { head: 'Снижение долга', cell: (c) => {
+      const est = P.principalRepaidSince(c.debtSnapshots, from);
+      return c.debtSnapshots.length
+        ? `<span${est > 0 ? ' style="font-weight:600"' : ' class="sub"'}>${money0(est)}</span>` : '—';
+    } }
+    : { head: 'Платежей', cell: (c) => c.hasPaymentTable ? c.payments.length : '<span class="sub">нет данных</span>' };
+
+  box.innerHTML = `<div class="setbar">${sets.map(([k, label, arr]) =>
+    `<button class="set${k === allSet ? ' on' : ''}${arr.length ? '' : ' empty'}" data-set="${k}"${arr.length ? '' : ' disabled'}>${label} <span class="n">${arr.length}</span></button>`).join('')}</div>
+    ${SET_NOTES[allSet] || ''}
     <div class="sumline">
-      <span><b>${creditors.length}</b> ${plural(creditors.length, 'кредитор', 'кредитора', 'кредиторов')}</span>
-      <span><b>${all.length}</b> ${plural(all.length, 'договор', 'договора', 'договоров')}</span>
-      <span><b>${open.length}</b> ${plural(open.length, 'действующий', 'действующих', 'действующих')}</span>
-      <span><b>${closed.length}</b> ${plural(closed.length, 'закрытый', 'закрытых', 'закрытых')}</span>
-      ${secured.length ? `<span><b>${secured.length}</b> с залогом</span>` : ''}
+      <span><b>${creditors.size}</b> ${plural(creditors.size, 'кредитор', 'кредитора', 'кредиторов')}</span>
+      <span><b>${list.length}</b> ${plural(list.length, 'договор', 'договора', 'договоров')}</span>
       <span class="sp"></span>
       <label class="lb2">Порядок
         <select id="all-sort">
@@ -4807,30 +4865,54 @@ function renderContracts() {
         </select>
       </label>
     </div>
-    <div class="card"><div class="scroll-x"><table>
-      <thead><tr><th>Кредитор</th><th>Вид договора</th><th>Взят</th><th>Срок по договору</th>
-        <th>Состояние</th><th>Основание закрытия</th><th class="r">Сумма обязательства</th>
-        <th class="r">Платежей</th><th class="r">Лист</th></tr></thead>
-      <tbody>${sorted.map((c) => `<tr>
-        <td><b>${esc(c.creditor)}</b>${c.pledges.length
-    ? ` <span class="pl-mark" title="По договору есть залог">залог</span>` : ''}
+    <div class="card"><div class="scroll-x"><table class="rowopen">
+      <thead><tr><th>Кредитор</th><th>Вид займа</th><th>Взят</th><th>Состояние</th>
+        <th class="r">Сумма обязательства</th><th class="r">${lastCol.head}</th><th class="r">Лист</th></tr></thead>
+      <tbody>${sorted.map((c, i) => {
+    const est = c.debtSnapshots.length ? P.principalRepaidSince(c.debtSnapshots, from) : null;
+    return `<tr class="main" data-row="${i}" tabindex="0">
+        <td><b>${esc(c.creditor)}</b>${c.pledges.length ? ' <span class="pl-mark">залог</span>' : ''}
           <span class="sub"> №${c.index}</span></td>
         <td class="sub" title="${esc(c.kind)}">${esc(kindShort(c.kind))}</td>
         <td class="nw">${date(c.contractDate) || '—'}</td>
-        <td class="sub nw">${planDate(c.plannedEnd)}</td>
         <td>${contractState(c)}</td>
-        <td class="sub">${esc(c.closeReason || '—')}</td>
         <td class="r">${money0(c.amount)}</td>
-        <td class="r">${c.hasPaymentTable ? c.payments.length : '<span class="sub">нет данных</span>'}</td>
-        <td class="r sub">${c.page}</td></tr>`).join('')}</tbody></table></div></div>
-    <p class="hint">«Взят» — поле «Дата совершения сделки». «Срок по договору» — плановое прекращение
-      обязательства по условиям сделки, а не фактическое закрытие: у карт вместо срока стоит «бессрочно».
-      «Состояние» с датой берётся из поля «Дата фактического прекращения обязательства»; без даты показан
-      раздел отчёта, в котором напечатан договор. Номер после кредитора — нумерация самого отчёта, своя
-      в разделах действующих и закрытых договоров. Просрочки по этим договорам — во вкладке «Просрочка».</p>`;
+        <td class="r">${lastCol.cell(c)}</td>
+        <td class="r sub">${c.page}<span class="caret2"></span></td></tr>
+      <tr class="det" data-det="${i}" hidden><td colspan="7"><dl class="det-dl">
+        <dt>Срок по договору</dt><dd>${planDate(c.plannedEnd)}</dd>
+        ${c.closeReason ? `<dt>Основание закрытия</dt><dd>${esc(c.closeReason)}</dd>` : ''}
+        ${c.obligationDate ? `<dt>Обязательство с</dt><dd>${date(c.obligationDate)}</dd>` : ''}
+        ${c.participation ? `<dt>Вид участия</dt><dd>${esc(c.participation)}</dd>` : ''}
+        ${c.controlTotals ? `<dt>Агрегат отчёта</dt><dd>${money(c.controlTotals.total)}</dd>` : ''}
+        ${est != null && allSet !== 'nodata' ? `<dt>Снижение долга по снимкам</dt><dd>${money0(est)}</dd>` : ''}
+        ${c.pledges.length ? `<dt>Залог</dt><dd>${c.pledges.map((p) =>
+      `${esc(p.subject || 'предмет не назван')} — ${p.released ? 'снят ' + date(p.endActual) : 'в силе'}`).join('; ')}</dd>` : ''}
+        ${c.statuses.length ? `<dt>Отметки отчёта</dt><dd class="sub">${c.statuses.map(esc).join(' · ')}</dd>` : ''}
+      </dl></td></tr>`;
+  }).join('')}</tbody></table></div></div>
+    <p class="hint">Строка раскрывается по клику: срок по договору, основание закрытия и прочие поля карточки.
+      «Взят» — поле «Дата совершения сделки». «Состояние» с датой берётся из «Даты фактического прекращения
+      обязательства»; без даты показан раздел отчёта, в котором напечатан договор. Номер после кредитора —
+      нумерация самого отчёта, своя в разделах действующих и закрытых. Просрочки — во вкладке «Просрочка».</p>`;
 
   const sel = $('all-sort');
-  if (sel) sel.addEventListener('change', (e) => { allSort = e.target.value; savePrefs(); renderContracts(); });
+  if (sel) sel.addEventListener('change', (e) => { allSort = e.target.value; savePrefs(); renderContracts(res); });
+  box.querySelectorAll('.setbar .set').forEach((b) => b.addEventListener('click', () => {
+    allSet = b.dataset.set; savePrefs(); renderContracts(res);
+  }));
+  const toggle = (tr) => {
+    const det = box.querySelector(`tr.det[data-det="${tr.dataset.row}"]`);
+    if (!det) return;
+    det.hidden = !det.hidden;
+    tr.classList.toggle('open', !det.hidden);
+  };
+  box.querySelectorAll('tr.main').forEach((tr) => {
+    tr.addEventListener('click', () => toggle(tr));
+    tr.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(tr); }
+    });
+  });
 }
 
 /* ---------------- вкладка «Залоги» ---------------- */
@@ -4840,15 +4922,15 @@ function renderPledges() {
 
   const rows = [];
   for (const c of report.contracts) for (const p of c.pledges) rows.push({ c, p });
-  // Не снятые залоги вперёд: именно они обременяют имущество сейчас.
-  rows.sort((a, b) => (a.p.released ? 1 : 0) - (b.p.released ? 1 : 0) ||
-    ((b.p.since || '') < (a.p.since || '') ? -1 : (b.p.since || '') > (a.p.since || '') ? 1 : 0));
   if (!rows.length) {
     box.innerHTML = `<div class="empty"><b>Залогов в отчёте нет</b>
       Ни в одном договоре не нашлось раздела «Сведения о залоге».
       Это значит, что обеспеченных залогом обязательств бюро не передало.</div>`;
     return;
   }
+  // Не снятые залоги вперёд: именно они обременяют имущество сейчас.
+  rows.sort((a, b) => (a.p.released ? 1 : 0) - (b.p.released ? 1 : 0) ||
+    ((b.p.since || '') < (a.p.since || '') ? -1 : (b.p.since || '') > (a.p.since || '') ? 1 : 0));
 
   const live = rows.filter((r) => !r.p.released);
   const liveValue = live.reduce((a, r) => a + (r.p.currentValue != null ? r.p.currentValue : r.p.value || 0), 0);
@@ -4861,63 +4943,46 @@ function renderPledges() {
       <span><b>${rows.length - live.length}</b> снято</span>
       ${liveValue > 0 ? `<span>оценка действующих <b>${money0(liveValue)}</b></span>` : ''}
     </div>
-    ${rows.map(({ c, p }) => `<div class="pl-card${p.released ? ' done' : ''}">
+    ${rows.map(({ c, p }) => {
+    // На виду только то, ради чего открывают вкладку: что в залоге, сколько
+    // стоит и снят ли. Реквизиты — под «подробнее».
+    const more = [
+      p.code ? ['Идентификатор', `<span class="mono">${esc(p.code)}</span>`] : null,
+      p.currentValue != null ? ['Актуальная стоимость',
+        money0(p.currentValue) + (p.currentDate ? ` <span class="sub">на ${date(p.currentDate)}</span>` : '')] : null,
+      p.securedTotal != null ? ['Обеспечено обязательств', money0(p.securedTotal) +
+        (p.securedCount ? ` <span class="sub">по ${p.securedCount} ${plural(p.securedCount, 'договору', 'договорам', 'договорам')}</span>` : '')] : null,
+      ['Срок по договору залога', `<span class="sub">${planDate(p.endPlanned)}</span>`],
+      p.released && p.endReason ? ['Причина снятия', `<span class="sub">${esc(p.endReason.toLowerCase())}</span>`] : null,
+      p.place ? ['Место нахождения', `<span class="sub">${esc(p.place)}</span>`] : null
+    ].filter(Boolean);
+
+    return `<div class="pl-card${p.released ? ' done' : ''}">
       <div class="pl-head">
         <div>
           <b>${esc(c.creditor)}</b>
           <span class="sub">№${c.index} от ${date(c.contractDate) || '—'} · ${esc(kindShort(c.kind))}</span>
         </div>
         <div class="pl-chips">${contractState(c)}${p.released
-    ? `<span class="st-chip done">залог снят ${date(p.endActual)}</span>`
-    : '<span class="st-chip acc">залог в силе</span>'}</div>
+      ? `<span class="st-chip done">залог снят ${date(p.endActual)}</span>`
+      : '<span class="st-chip acc">залог в силе</span>'}</div>
       </div>
       <div class="pl-subj">${esc(p.subject || 'Предмет залога не назван')}${p.residential
-    ? ' <span class="pl-mark">жилая недвижимость</span>' : ''}${p.purchased
-    ? ' <span class="pl-mark">приобретается по сделке</span>' : ''}</div>
+      ? ' <span class="pl-mark">жилая недвижимость</span>' : ''}${p.purchased
+      ? ' <span class="pl-mark">приобретается по сделке</span>' : ''}</div>
       <dl class="pl-dl">
-        ${p.code ? `<dt>Идентификатор</dt><dd class="mono">${esc(p.code)}</dd>` : ''}
         <dt>Залог с</dt><dd>${date(p.since) || '—'}</dd>
         <dt>Оценка</dt><dd>${money0(p.value)}${p.valueKind ? ` <span class="sub">${esc(p.valueKind.toLowerCase())}</span>` : ''}${p.valueDate ? ` <span class="sub">на ${date(p.valueDate)}</span>` : ''}</dd>
-        ${p.currentValue != null ? `<dt>Актуальная стоимость</dt><dd>${money0(p.currentValue)}${p.currentDate ? ` <span class="sub">на ${date(p.currentDate)}</span>` : ''}</dd>` : ''}
-        ${p.securedTotal != null ? `<dt>Обеспечено обязательств</dt><dd>${money0(p.securedTotal)}${p.securedCount ? ` <span class="sub">по ${p.securedCount} ${plural(p.securedCount, 'договору', 'договорам', 'договорам')}</span>` : ''}</dd>` : ''}
-        <dt>Срок по договору залога</dt><dd class="sub">${planDate(p.endPlanned)}</dd>
-        ${p.released ? `<dt>Снят</dt><dd>${date(p.endActual)}${p.endReason ? ` <span class="sub">— ${esc(p.endReason.toLowerCase())}</span>` : ''}</dd>` : ''}
-        ${p.place ? `<dt>Место нахождения</dt><dd class="sub">${esc(p.place)}</dd>` : ''}
       </dl>
+      ${more.length ? `<details class="pl-more"><summary><span class="caret"></span>Подробнее</summary>
+        <dl class="pl-dl">${more.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl></details>` : ''}
       ${p.stale ? `<p class="pl-note">Отчёт помечает эти сведения как возможно неактуальные:
         основное обязательство прекращено, и данные о залоге могли не обновляться.</p>` : ''}
-    </div>`).join('')}
+    </div>`;
+  }).join('')}
     <p class="hint">Залог считается снятым только по полю «Дата фактического прекращения залога».
       Плановый срок из договора залога ничего не говорит о том, снято обеспечение или нет:
       в отчётах регулярно встречается и просроченный план при действующем залоге, и снятие раньше срока.</p>`;
-}
-
-function renderNoData(res) {
-  const box = document.querySelector('#panel-nodata .pbody');
-  const list = report.contracts.filter((c) => !c.hasPaymentTable);
-  if (!list.length) {
-    box.innerHTML = '<div class="empty"><b>Таких договоров нет</b>По каждому договору в отчёте есть построчный список платежей.</div>';
-    return;
-  }
-  const from = res && res.deal ? res.deal.date : null;
-  const withEst = list.filter((c) => P.principalRepaidSince(c.debtSnapshots, from) > 0);
-
-  box.innerHTML = `<div class="note"><b>Важно.</b> По этим договорам кредитор не передал в бюро построчный список платежей.
-      Отсутствие платежей здесь <b>не значит, что их не было</b> — сведений просто нет в отчёте.</div>
-    ${withEst.length ? `<div class="note calm">По ${withEst.length} из них движение всё же видно: раздел «Сведения о сумме
-      задолженности» показывает, как менялся основной долг. Это <b>оценка снизу и косвенная</b>: долг уменьшается
-      не только от платежей, но и при списании, переуступке или реструктуризации. В расчёт она не входит.</div>` : ''}
-    <div class="card"><div class="scroll-x"><table>
-    <thead><tr><th>№</th><th>Кредитор</th><th>Вид</th><th>Дата договора</th>
-      <th class="r">Сумма обязательства</th><th class="r">Агрегат отчёта</th><th class="r">Снижение долга</th><th class="r">Лист</th></tr></thead>
-    <tbody>${list.map((c) => {
-    const est = P.principalRepaidSince(c.debtSnapshots, from);
-    return `<tr><td class="sub">${c.section === 'closed' ? 'з' : 'д'}${c.index}</td>
-      <td><b>${esc(c.creditor)}</b></td><td class="sub">${esc(c.kind)}</td><td>${date(c.contractDate)}</td>
-      <td class="r">${money0(c.amount)}</td><td class="r">${c.controlTotals ? money(c.controlTotals.total) : '—'}</td>
-      <td class="r"${est > 0 ? ' style="font-weight:700"' : ' class="r sub"'}>${c.debtSnapshots.length ? money(est) : '—'}</td>
-      <td class="r sub">${c.page}</td></tr>`;
-  }).join('')}</tbody></table></div></div>`;
 }
 
 function renderCheck() {
